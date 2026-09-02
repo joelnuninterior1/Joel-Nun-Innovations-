@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — JIT BANK</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">JIT BANK</div>
+      <nav>
+        <a href="dashboard.html" class="active">🏠 Dashboard</a>
+        <a href="transfer.html">↗ Transfer</a>
+        <a href="transactions.html">📋 Transactions</a>
+        <a href="profile.html">👤 Profile</a>
+      </nav>
+      <div class="bottom">
+        <a href="#" onclick="logout();return false;" style="color:#94A3B8;">Sign out</a>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <h2>Dashboard</h2>
+        <div class="user-chip">
+          <span id="userName">—</span>
+          <div class="avatar" id="userAvatar">?</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div id="error" class="alert alert-error" style="display:none;"></div>
+
+        <div class="stats-row" id="statsRow">
+          <div class="stat-card highlight">
+            <div class="label">Total Balance</div>
+            <div class="value" id="totalBalance">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Accounts</div>
+            <div class="value" id="accountCount">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Status</div>
+            <div class="value" style="font-size:18px;" id="statusBadge">Active</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Your Accounts</h3>
+          <div id="accountsList">
+            <div class="empty-state">Loading accounts…</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Quick Actions</h3>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <a href="transfer.html" class="btn btn-primary" style="width:auto;">Send Money</a>
+            <a href="transactions.html" class="btn btn-secondary" style="width:auto;">View History</a>
+            <a href="profile.html" class="btn btn-secondary" style="width:auto;">Profile</a>
+          </div>
+        </div>
+
+        <p class="disclaimer">
+          Educational demonstration only. Not a licensed bank. No real funds are held or moved.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('redirect');
+
+    const user = getStoredUser();
+    if (user) {
+      document.getElementById('userName').textContent = user.fullName || user.email || 'User';
+      const initial = (user.fullName || user.email || '?')[0].toUpperCase();
+      document.getElementById('userAvatar').textContent = initial;
+    }
+
+    async function loadDashboard() {
+      try {
+        const data = await getAccounts();
+        const accounts = data.accounts || [];
+        document.getElementById('accountCount').textContent = accounts.length;
+
+        let total = 0;
+        let currency = 'NGN';
+        accounts.forEach(a => {
+          total += Number(a.balanceCents || a.balance_cents || 0);
+          currency = a.currency || currency;
+        });
+        document.getElementById('totalBalance').textContent = formatMoney(total, currency);
+
+        const list = document.getElementById('accountsList');
+        if (accounts.length === 0) {
+          list.innerHTML = '<div class="empty-state"><p>No accounts yet.</p></div>';
+          return;
+        }
+
+        list.innerHTML = accounts.map(a => {
+          const bal = a.balanceCents ?? a.balance_cents ?? 0;
+          const id = a.id;
+          return `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--border);">
+              <div>
+                <div style="font-weight:600;">${formatMoney(bal, a.currency || 'NGN')}</div>
+                <div style="font-size:12px;color:var(--muted);font-family:monospace;">${id.slice(0, 8)}…</div>
+              </div>
+              <div>
+                <span class="badge badge-success">${a.status || 'ACTIVE'}</span>
+                <a href="transfer.html?from=${id}" class="btn btn-sm btn-outline" style="margin-left:10px;">Transfer</a>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = err.message || 'Failed to load accounts. Is the backend running?';
+        document.getElementById('accountsList').innerHTML = '';
+      }
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

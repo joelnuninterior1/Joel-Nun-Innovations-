@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transfer — JIT BANK</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">JIT BANK</div>
+      <nav>
+        <a href="dashboard.html">🏠 Dashboard</a>
+        <a href="transfer.html" class="active">↗ Transfer</a>
+        <a href="transactions.html">📋 Transactions</a>
+        <a href="profile.html">👤 Profile</a>
+      </nav>
+      <div class="bottom">
+        <a href="#" onclick="logout();return false;" style="color:#94A3B8;">Sign out</a>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <h2>Send Money</h2>
+        <div class="user-chip">
+          <span id="userName">—</span>
+          <div class="avatar" id="userAvatar">?</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="card" style="max-width:480px;">
+          <h3>New Transfer</h3>
+
+          <div id="alert" class="alert" style="display:none;"></div>
+
+          <form id="transferForm">
+            <div class="form-group">
+              <label for="fromAccount">From Account</label>
+              <select id="fromAccount" required>
+                <option value="">Loading accounts…</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="toAccount">To Account ID</label>
+              <input type="text" id="toAccount" required placeholder="Paste recipient account UUID" />
+            </div>
+            <div class="form-group">
+              <label for="amount">Amount (NGN)</label>
+              <input type="number" id="amount" required min="0.01" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="form-group">
+              <label for="note">Note (optional)</label>
+              <input type="text" id="note" placeholder="What’s this for?" maxlength="100" />
+            </div>
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+              <span id="btnText">Send Money</span>
+            </button>
+          </form>
+        </div>
+
+        <p class="disclaimer">
+          A unique idempotency key is generated automatically so network retries will not double-charge.
+          Educational demo only.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('redirect');
+
+    const user = getStoredUser();
+    if (user) {
+      document.getElementById('userName').textContent = user.fullName || user.email || 'User';
+      document.getElementById('userAvatar').textContent = (user.fullName || user.email || '?')[0].toUpperCase();
+    }
+
+    const fromSelect = document.getElementById('fromAccount');
+    const params = new URLSearchParams(window.location.search);
+    const preselect = params.get('from');
+
+    async function loadAccounts() {
+      try {
+        const data = await getAccounts();
+        const accounts = data.accounts || [];
+        fromSelect.innerHTML = accounts.length
+          ? accounts.map(a => {
+              const bal = a.balanceCents ?? a.balance_cents ?? 0;
+              return `<option value="${a.id}" ${a.id === preselect ? 'selected' : ''}>
+                ${formatMoney(bal, a.currency || 'NGN')} — ${a.id.slice(0, 8)}…
+              </option>`;
+            }).join('')
+          : '<option value="">No accounts found</option>';
+      } catch (err) {
+        fromSelect.innerHTML = '<option value="">Failed to load</option>';
+      }
+    }
+    loadAccounts();
+
+    document.getElementById('transferForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const alert = document.getElementById('alert');
+      const btn = document.getElementById('submitBtn');
+      const btnText = document.getElementById('btnText');
+      alert.style.display = 'none';
+
+      const amount = parseFloat(document.getElementById('amount').value);
+      if (!amount || amount <= 0) {
+        alert.className = 'alert alert-error';
+        alert.textContent = 'Enter a valid amount';
+        alert.style.display = 'block';
+        return;
+      }
+
+      const amountCents = Math.round(amount * 100);
+      btn.disabled = true;
+      btnText.textContent = 'Sending…';
+
+      try {
+        const result = await createTransfer({
+          fromAccountId: fromSelect.value,
+          toAccountId: document.getElementById('toAccount').value.trim(),
+          amountCents,
+          idempotencyKey: generateIdempotencyKey(),
+          description: document.getElementById('note').value.trim() || undefined,
+        });
+        alert.className = 'alert alert-success';
+        alert.textContent = 'Transfer successful!';
+        alert.style.display = 'block';
+        document.getElementById('amount').value = '';
+        document.getElementById('toAccount').value = '';
+        document.getElementById('note').value = '';
+        loadAccounts();
+      } catch (err) {
+        alert.className = 'alert alert-error';
+        alert.textContent = err.message || 'Transfer failed';
+        alert.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Send Money';
+      }
+    });
+  </script>
+</body>
+</html>
