@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transactions — JIT BANK</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">JIT BANK</div>
+      <nav>
+        <a href="dashboard.html">🏠 Dashboard</a>
+        <a href="transfer.html">↗ Transfer</a>
+        <a href="transactions.html" class="active">📋 Transactions</a>
+        <a href="profile.html">👤 Profile</a>
+      </nav>
+      <div class="bottom">
+        <a href="#" onclick="logout();return false;" style="color:#94A3B8;">Sign out</a>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <h2>Transactions</h2>
+        <div class="user-chip">
+          <span id="userName">—</span>
+          <div class="avatar" id="userAvatar">?</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+            <h3 style="margin:0;">History</h3>
+            <select id="accountFilter" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);">
+              <option value="">Select account…</option>
+            </select>
+          </div>
+
+          <div id="error" class="alert alert-error" style="display:none;"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody id="txnBody">
+                <tr><td colspan="4" class="empty-state">Select an account to view transactions</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="disclaimer">Educational demo only. Not a real bank.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('redirect');
+
+    const user = getStoredUser();
+    if (user) {
+      document.getElementById('userName').textContent = user.fullName || user.email || 'User';
+      document.getElementById('userAvatar').textContent = (user.fullName || user.email || '?')[0].toUpperCase();
+    }
+
+    const filter = document.getElementById('accountFilter');
+    let accountsMap = {};
+
+    async function loadAccounts() {
+      try {
+        const data = await getAccounts();
+        const accounts = data.accounts || [];
+        accounts.forEach(a => accountsMap[a.id] = a);
+        filter.innerHTML = '<option value="">Select account…</option>' +
+          accounts.map(a => {
+            const bal = a.balanceCents ?? a.balance_cents ?? 0;
+            return `<option value="${a.id}">${formatMoney(bal, a.currency || 'NGN')} — ${a.id.slice(0, 8)}…</option>`;
+          }).join('');
+      } catch (err) {
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = err.message;
+      }
+    }
+
+    filter.addEventListener('change', async () => {
+      const accountId = filter.value;
+      const tbody = document.getElementById('txnBody');
+      document.getElementById('error').style.display = 'none';
+      if (!accountId) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Select an account</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Loading…</td></tr>';
+      try {
+        const data = await getTransactions(accountId);
+        const txns = data.transactions || [];
+        if (txns.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No transactions yet</td></tr>';
+          return;
+        }
+        tbody.innerHTML = txns.map(t => {
+          const isDebit = (t.debitAccountId || t.debit_account_id) === accountId;
+          const amount = t.amountCents ?? t.amount_cents ?? 0;
+          const currency = t.currency || 'NGN';
+          const date = t.createdAt || t.created_at
+            ? new Date(t.createdAt || t.created_at).toLocaleString()
+            : '—';
+          const desc = t.description || (isDebit ? 'Sent' : 'Received');
+          return `
+            <tr>
+              <td>${date}</td>
+              <td>${desc}</td>
+              <td>${isDebit ? 'Debit' : 'Credit'}</td>
+              <td class="${isDebit ? 'amount-out' : 'amount-in'}">
+                ${isDebit ? '−' : '+'}${formatMoney(amount, currency)}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        tbody.innerHTML = '';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = err.message;
+      }
+    });
+
+    loadAccounts();
+  </script>
+</body>
+</html>

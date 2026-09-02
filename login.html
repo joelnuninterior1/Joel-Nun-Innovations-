@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — JIT BANK</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <div class="logo">
+        <h1>JIT BANK</h1>
+        <p>Sign in to your account</p>
+      </div>
+
+      <div id="alert" class="alert alert-error" style="display:none;"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" required autocomplete="current-password" placeholder="••••••••" minlength="8" />
+        </div>
+        <div style="text-align:right;margin-bottom:18px;">
+          <a href="forgot-password.html" style="font-size:13px;">Forgot password?</a>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <span id="btnText">Sign In</span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Don’t have an account? <a href="register.html">Create one</a>
+      </div>
+      <p class="disclaimer">Educational demo only. Not a real bank.</p>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    // Redirect if already logged in
+    if (localStorage.getItem('jit_token')) {
+      window.location.href = 'dashboard.html';
+    }
+
+    const form = document.getElementById('loginForm');
+    const alertEl = document.getElementById('alert');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      alertEl.style.display = 'none';
+      submitBtn.disabled = true;
+      btnText.textContent = 'Signing in…';
+
+      try {
+        const data = await login(
+          document.getElementById('email').value.trim(),
+          document.getElementById('password').value
+        );
+        saveSession(data.token, data.user);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        alertEl.textContent = err.message || 'Login failed';
+        alertEl.style.display = 'block';
+        submitBtn.disabled = false;
+        btnText.textContent = 'Sign In';
+      }
+    });
+  </script>
+</body>
+</html>
